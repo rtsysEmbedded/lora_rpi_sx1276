@@ -1,0 +1,12 @@
+RPi.GPIO>=0.7.1
+spidev>=3.5
+
+# Note: LoRa library options:
+# Option 1: pyLoRa (may need manual installation)
+#   git clone https://github.com/lemariva/pyLoRa.git
+#   cd pyLoRa && sudo python3 setup.py install
+#
+# Option 2: LoRa library
+#   pip3 install LoRa
+#
+# Option 3: Use direct register manipulation (see test_lora_basic.py)
