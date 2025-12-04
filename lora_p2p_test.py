@@ -493,7 +493,7 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
-        if args.mode:
+    if args.mode:
         mode = args.mode.lower()
         if mode == "tx" or mode == "transmit":
             transmitter_mode(spi_bus=args.spi_bus, spi_device=args.spi_device,
@@ -514,8 +514,8 @@ if __name__ == "__main__":
         print("\nOptions:")
         print("  --spi-bus N      SPI bus number (default: 0)")
         print("  --spi-device N   SPI device number (default: 0)")
-        print("  --nss-pin N      NSS/CS GPIO pin (default: 8)")
-        print("  --rst-pin N      RST GPIO pin (default: 25)")
+        print(f"  --nss-pin N      NSS/CS GPIO pin (default: {NSS_PIN})")
+        print(f"  --rst-pin N      RST GPIO pin (default: {RST_PIN})")
         print("\nExamples:")
         print("  python3 lora_p2p_test.py test")
         print("  python3 lora_p2p_test.py test --spi-device 1")
