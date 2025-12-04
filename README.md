@@ -1,6 +1,12 @@
 # LoRa P2P Communication Test - SX1276 & Raspberry Pi 3
 
-This project demonstrates point-to-point (P2P) communication between two SX1276 LoRa modules using a Raspberry Pi 3.
+This project demonstrates point-to-point (P2P) communication between two SX1276 LoRa modules or Helium LoRa modems using a Raspberry Pi 3.
+
+## Supported Hardware
+
+- **SX1276 LoRa modules** (generic)
+- **SX1278 LoRa modules** (generic)
+- **Helium LoRa modems** (RAK, LongAP, and other Helium-compatible devices based on SX1276/SX1278)
 
 ## Understanding LoRa P2P Mode
 
@@ -92,9 +98,24 @@ pip3 install RPi.GPIO spidev
 
 ## Usage
 
+### For Helium Modems
+
+**First, test your Helium modem detection:**
+```bash
+python3 lora_p2p_test.py test
+```
+
+This will verify:
+- Module is detected correctly
+- SPI communication is working
+- Configuration is set for P2P mode
+- Current frequency and settings
+
+See `HELIUM_MODEM_SETUP.md` for detailed Helium modem setup instructions.
+
 ### Testing with Two Modules
 
-You need two Raspberry Pi 3 boards, each with an SX1276 module connected.
+You need two Raspberry Pi 3 boards, each with an SX1276 module or Helium modem connected.
 
 **Terminal 1 (Receiver):**
 ```bash
@@ -107,6 +128,8 @@ python3 lora_p2p_test.py tx
 ```
 
 The transmitter will send messages every 5 seconds, and the receiver will display them with RSSI and SNR values.
+
+**Note**: You can mix and match - test a Helium modem with a regular SX1276 module, as long as both use the same configuration.
 
 ### Single Module Testing
 
@@ -175,6 +198,13 @@ self.write_register(Registers.REG_MODEM_CONFIG_1, 0x72)  # 125kHz, CR 4/5
 3. Check power supply (3.3V)
 4. Verify chip select (NSS) pin
 
+### Helium Modem Specific Issues
+
+1. **Modem in LoRaWAN mode**: Some Helium modems default to LoRaWAN mode. The code automatically switches to P2P mode, but you may need to power cycle the module
+2. **AT command interference**: If your modem has AT command firmware, ensure it's not interfering with SPI communication
+3. **Different pin configuration**: Check `HELIUM_MODEM_SETUP.md` for pin configurations specific to your Helium modem model
+4. **Version mismatch**: Some Helium modems may report different version numbers but still work - run `python3 lora_p2p_test.py test` to verify
+
 ## Range Expectations
 
 With default settings (SF7, 125kHz BW):
@@ -184,6 +214,11 @@ With default settings (SF7, 125kHz BW):
 
 With SF12, 125kHz BW:
 - **Outdoor (rural)**: 10-20 km (line of sight)
+
+## Additional Resources
+
+- **`HELIUM_MODEM_SETUP.md`** - Detailed guide for setting up Helium LoRa modems
+- **`LORA_P2P_GUIDE.md`** - Technical explanation of LoRa P2P communication
 
 ## License
 

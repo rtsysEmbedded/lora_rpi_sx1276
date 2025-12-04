@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """
-LoRa P2P Communication Test for SX1276
-Test communication between two SX1276 LoRa modules in P2P mode
+LoRa P2P Communication Test for SX1276 / Helium Modems
+Test communication between two SX1276 LoRa modules or Helium LoRa modems in P2P mode
+
+Supported Hardware:
+- SX1276/SX1278 LoRa modules (generic)
+- Helium LoRa modems (RAK, LongAP, and other Helium-compatible devices)
 """
 
 import time
@@ -291,6 +295,100 @@ def receiver_mode():
         lora.close()
 
 
+def test_mode():
+    """Test mode - verify module detection and configuration"""
+    print("\n=== TEST MODE ===")
+    print("Testing Helium LoRa modem detection and configuration...\n")
+    
+    try:
+        lora = SX1276()
+        
+        # Read and display key registers
+        print("Module Information:")
+        print("-" * 50)
+        
+        version = lora.read_register(Registers.REG_VERSION)
+        print(f"Version Register: 0x{version:02X}")
+        if version == 0x12:
+            print("  ✓ SX1276/SX1278 detected")
+        elif version == 0x11:
+            print("  ⚠ Version 0x11 (may be compatible)")
+        elif version == 0x13:
+            print("  ⚠ Version 0x13 (may be compatible)")
+        else:
+            print(f"  ⚠ Unexpected version (expected 0x12)")
+        
+        # Read operation mode
+        op_mode = lora.read_register(Registers.REG_OP_MODE)
+        print(f"Operation Mode: 0x{op_mode:02X}")
+        if op_mode & 0x80:
+            print("  ✓ LoRa mode enabled")
+        else:
+            print("  ✗ Not in LoRa mode!")
+        
+        # Read frequency
+        frf_msb = lora.read_register(Registers.REG_FRF_MSB)
+        frf_mid = lora.read_register(Registers.REG_FRF_MID)
+        frf_lsb = lora.read_register(Registers.REG_FRF_LSB)
+        freq_reg = (frf_msb << 16) | (frf_mid << 8) | frf_lsb
+        freq = (freq_reg * 32000000) / 524288
+        print(f"Frequency: {freq/1000000:.3f} MHz")
+        
+        # Read modem config
+        modem_cfg1 = lora.read_register(Registers.REG_MODEM_CONFIG_1)
+        modem_cfg2 = lora.read_register(Registers.REG_MODEM_CONFIG_2)
+        modem_cfg3 = lora.read_register(Registers.REG_MODEM_CONFIG_3)
+        
+        # Decode bandwidth
+        bw = (modem_cfg1 >> 4) & 0x0F
+        bw_values = {
+            0: "7.8 kHz", 1: "10.4 kHz", 2: "15.6 kHz", 3: "20.8 kHz",
+            4: "31.25 kHz", 5: "41.7 kHz", 6: "62.5 kHz", 7: "125 kHz",
+            8: "250 kHz", 9: "500 kHz"
+        }
+        print(f"Bandwidth: {bw_values.get(bw, 'Unknown')}")
+        
+        # Decode spreading factor
+        sf = (modem_cfg2 >> 4) & 0x0F
+        print(f"Spreading Factor: SF{sf}")
+        
+        # Decode coding rate
+        cr = ((modem_cfg1 >> 1) & 0x07) + 5
+        print(f"Coding Rate: 4/{cr}")
+        
+        # Read sync word
+        sync_word = lora.read_register(Registers.REG_SYNC_WORD)
+        print(f"Sync Word: 0x{sync_word:02X}")
+        if sync_word == 0x34:
+            print("  ✓ P2P mode (sync word 0x34)")
+        elif sync_word == 0x12:
+            print("  ⚠ LoRaWAN mode (sync word 0x12) - should be 0x34 for P2P")
+        else:
+            print(f"  ⚠ Custom sync word")
+        
+        # Read PA config
+        pa_config = lora.read_register(Registers.REG_PA_CONFIG)
+        print(f"PA Config: 0x{pa_config:02X}")
+        
+        print("\n" + "-" * 50)
+        print("Test completed!")
+        print("\nIf module is detected correctly, you can now:")
+        print("  - Run 'python3 lora_p2p_test.py rx' to receive")
+        print("  - Run 'python3 lora_p2p_test.py tx' to transmit")
+        
+        lora.close()
+        
+    except Exception as e:
+        print(f"\n✗ Error during test: {e}")
+        print("\nTroubleshooting:")
+        print("  1. Check SPI connections (MOSI, MISO, SCK, CS)")
+        print("  2. Verify power supply (3.3V)")
+        print("  3. Check if SPI is enabled: lsmod | grep spi")
+        print("  4. Verify GPIO pin numbers match your wiring")
+        print("  5. Try resetting the module (power cycle)")
+        raise
+
+
 if __name__ == "__main__":
     import sys
     
@@ -300,15 +398,21 @@ if __name__ == "__main__":
             transmitter_mode()
         elif mode == "rx" or mode == "receive":
             receiver_mode()
+        elif mode == "test":
+            test_mode()
         else:
-            print("Usage: python3 lora_p2p_test.py [tx|rx]")
-            print("  tx  - Transmitter mode (sends messages)")
-            print("  rx  - Receiver mode (listens for messages)")
+            print("Usage: python3 lora_p2p_test.py [tx|rx|test]")
+            print("  tx    - Transmitter mode (sends messages)")
+            print("  rx    - Receiver mode (listens for messages)")
+            print("  test  - Test mode (verify module detection)")
     else:
-        print("LoRa P2P Test for SX1276")
-        print("\nUsage: python3 lora_p2p_test.py [tx|rx]")
-        print("\n  tx  - Transmitter mode (sends messages)")
-        print("  rx  - Receiver mode (listens for messages)")
+        print("LoRa P2P Test for SX1276 / Helium Modems")
+        print("\nUsage: python3 lora_p2p_test.py [tx|rx|test]")
+        print("\n  tx    - Transmitter mode (sends messages)")
+        print("  rx    - Receiver mode (listens for messages)")
+        print("  test  - Test mode (verify module detection)")
         print("\nExample:")
         print("  Terminal 1: python3 lora_p2p_test.py rx")
         print("  Terminal 2: python3 lora_p2p_test.py tx")
+        print("\nFor Helium modems, first run:")
+        print("  python3 lora_p2p_test.py test")
