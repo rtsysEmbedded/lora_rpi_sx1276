@@ -14,9 +14,13 @@ import RPi.GPIO as GPIO
 from enum import IntEnum
 
 # GPIO Pin Definitions (adjust based on your wiring)
-NSS_PIN = 8   # Chip Select (CS)
-RST_PIN = 25  # Reset pin
-DIO0_PIN = 2  # DIO0 interrupt pin (optional)
+# Default: Helium modem pin configuration
+# NSS: BCM GPIO 6 (Wiring Pi 22)
+# RESET: BCM GPIO 5 (Wiring Pi 21)
+# DIO0: BCM GPIO 19 (Wiring Pi 24) - optional
+NSS_PIN = 6   # Chip Select (CS) - BCM GPIO 6
+RST_PIN = 5   # Reset pin - BCM GPIO 5
+DIO0_PIN = 19 # DIO0 interrupt pin (optional) - BCM GPIO 19
 
 # LoRa Registers
 class Registers(IntEnum):
