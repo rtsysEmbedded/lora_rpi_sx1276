@@ -1,0 +1,3 @@
+# LoRa P2P Test Requirements for Raspberry Pi 3 with SX1276
+spidev>=3.5
+RPi.GPIO>=0.7.1
