@@ -109,6 +109,16 @@ cd pySX127x
 sudo python3 setup.py install
 ```
 
+### "type object 'LoRa' has no attribute 'MODE'"
+
+Wrong library installed (pyLoRa instead of pySX127x). Fix it:
+
+```bash
+sudo bash fix_library.sh
+```
+
+See `LIBRARY_FIX.md` for details.
+
 ### "No module named 'Crypto'"
 
 Wrong crypto package. Install pycryptodome (not pycrypto):

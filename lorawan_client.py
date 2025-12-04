@@ -6,8 +6,16 @@ Connects to ChirpStack gateway using OTAA
 
 import time
 import struct
+import sys
+import os
+
+# Add current directory to path to use local board_config
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from SX127x.LoRa import LoRa
-from SX127x.board_config import BOARD
+import board_config
+BOARD = board_config.BOARD
+
 from Crypto.Cipher import AES
 from Crypto.Hash import CMAC
 import binascii

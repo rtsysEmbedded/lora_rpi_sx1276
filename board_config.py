@@ -9,8 +9,8 @@ import spidev
 import config
 
 # Use BCM GPIO numbering
+GPIO.setwarnings(False)  # Disable warnings first
 GPIO.setmode(GPIO.BCM)
-GPIO.setwarnings(False)
 
 
 class BOARD:

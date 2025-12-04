@@ -6,8 +6,14 @@ Run this first to ensure your hardware is properly connected
 
 import time
 import sys
+import os
+
+# Add current directory to path to use local board_config
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from SX127x.LoRa import LoRa
-from SX127x.board_config import BOARD
+import board_config
+BOARD = board_config.BOARD
 import config
 
 
