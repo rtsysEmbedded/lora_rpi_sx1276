@@ -57,9 +57,10 @@ class Mode(IntEnum):
     RX_SINGLE = 0x06
 
 class SX1276:
-    def __init__(self, spi_bus=0, spi_device=0, nss_pin=NSS_PIN, rst_pin=RST_PIN):
+    def __init__(self, spi_bus=0, spi_device=0, nss_pin=NSS_PIN, rst_pin=RST_PIN, debug=False):
         self.nss_pin = nss_pin
         self.rst_pin = rst_pin
+        self.debug = debug
         
         # Setup GPIO
         GPIO.setmode(GPIO.BCM)
@@ -67,11 +68,21 @@ class SX1276:
         GPIO.setup(self.nss_pin, GPIO.OUT)
         GPIO.setup(self.rst_pin, GPIO.OUT)
         
+        # Ensure NSS is high (inactive) initially
+        GPIO.output(self.nss_pin, GPIO.HIGH)
+        
         # Setup SPI
-        self.spi = spidev.SpiDev()
-        self.spi.open(spi_bus, spi_device)
-        self.spi.max_speed_hz = 5000000  # 5MHz
-        self.spi.mode = 0b00
+        try:
+            self.spi = spidev.SpiDev()
+            self.spi.open(spi_bus, spi_device)
+            self.spi.max_speed_hz = 1000000  # Start with 1MHz for reliability
+            self.spi.mode = 0b00
+            if self.debug:
+                print(f"SPI opened: bus={spi_bus}, device={spi_device}")
+        except Exception as e:
+            print(f"ERROR: Failed to open SPI: {e}")
+            print("Check if SPI is enabled: sudo raspi-config -> Interface Options -> SPI")
+            raise
         
         # Initialize
         self.reset()
@@ -79,32 +90,83 @@ class SX1276:
     
     def reset(self):
         """Reset the SX1276 module"""
+        if self.debug:
+            print(f"Resetting module (RST pin: GPIO {self.rst_pin})...")
         GPIO.output(self.rst_pin, GPIO.LOW)
         time.sleep(0.01)
         GPIO.output(self.rst_pin, GPIO.HIGH)
-        time.sleep(0.01)
+        time.sleep(0.05)  # Give more time after reset
     
     def write_register(self, address, value):
         """Write a value to a register"""
         GPIO.output(self.nss_pin, GPIO.LOW)
-        self.spi.xfer2([address | 0x80, value])
-        GPIO.output(self.nss_pin, GPIO.HIGH)
+        time.sleep(0.0001)  # Small delay for CS setup
+        try:
+            self.spi.xfer2([address | 0x80, value])
+        finally:
+            GPIO.output(self.nss_pin, GPIO.HIGH)
+            time.sleep(0.0001)  # Small delay for CS hold
     
     def read_register(self, address):
         """Read a value from a register"""
         GPIO.output(self.nss_pin, GPIO.LOW)
-        response = self.spi.xfer2([address & 0x7F, 0x00])
-        GPIO.output(self.nss_pin, GPIO.HIGH)
-        return response[1]
+        time.sleep(0.0001)  # Small delay for CS setup
+        try:
+            response = self.spi.xfer2([address & 0x7F, 0x00])
+            return response[1]
+        finally:
+            GPIO.output(self.nss_pin, GPIO.HIGH)
+            time.sleep(0.0001)  # Small delay for CS hold
     
     def init(self):
         """Initialize LoRa module with P2P settings"""
-        # Check version
-        version = self.read_register(Registers.REG_VERSION)
+        # First, try to read version multiple times to verify SPI communication
+        versions = []
+        for i in range(3):
+            version = self.read_register(Registers.REG_VERSION)
+            versions.append(version)
+            time.sleep(0.01)
+        
+        if all(v == 0x00 for v in versions):
+            print("\n⚠ WARNING: All registers reading 0x00 - SPI communication issue detected!")
+            print("\nTroubleshooting steps:")
+            print("1. Verify SPI is enabled: lsmod | grep spi")
+            print("2. Check SPI device exists: ls -l /dev/spi*")
+            print("3. Verify NSS/CS pin connection (GPIO 8 by default)")
+            print("4. Check MOSI, MISO, SCK connections")
+            print("5. Verify power supply (3.3V)")
+            print("6. Try different SPI device: python3 lora_p2p_test.py test --spi-device 1")
+            print("7. Check if module needs different reset sequence")
+            print("\nTrying alternative initialization...")
+            
+            # Try longer reset
+            GPIO.output(self.rst_pin, GPIO.LOW)
+            time.sleep(0.1)
+            GPIO.output(self.rst_pin, GPIO.HIGH)
+            time.sleep(0.1)
+            
+            # Try reading version again
+            version = self.read_register(Registers.REG_VERSION)
+            if version == 0x00:
+                print("\n✗ Still reading 0x00. SPI communication is not working.")
+                print("This usually means:")
+                print("  - Wrong CS/NSS pin")
+                print("  - SPI not enabled")
+                print("  - Wrong SPI bus/device")
+                print("  - Module not powered")
+                print("  - Wiring issue")
+                raise Exception("SPI communication failed - cannot read module registers")
+        
+        version = versions[0]
         print(f"SX1276 detected. Version: 0x{version:02X}")
         
         if version != 0x12:
-            print("Warning: Version mismatch. Expected 0x12")
+            if version == 0x00:
+                print("  ✗ Version is 0x00 - SPI communication issue!")
+            elif version in [0x11, 0x13]:
+                print(f"  ⚠ Version {version:02X} - may still work (some clones use this)")
+            else:
+                print(f"  ⚠ Unexpected version (expected 0x12 for SX1276/SX1278)")
         
         # Set sleep mode
         self.write_register(Registers.REG_OP_MODE, Mode.SLEEP | 0x80)  # LoRa mode
@@ -242,13 +304,13 @@ class SX1276:
         GPIO.cleanup()
 
 
-def transmitter_mode():
+def transmitter_mode(spi_bus=0, spi_device=0, nss_pin=NSS_PIN, rst_pin=RST_PIN):
     """Run as transmitter"""
     print("\n=== TRANSMITTER MODE ===")
     print("Sending messages every 5 seconds...")
     print("Press Ctrl+C to stop\n")
     
-    lora = SX1276()
+    lora = SX1276(spi_bus=spi_bus, spi_device=spi_device, nss_pin=nss_pin, rst_pin=rst_pin)
     
     try:
         counter = 0
@@ -269,13 +331,13 @@ def transmitter_mode():
         lora.close()
 
 
-def receiver_mode():
+def receiver_mode(spi_bus=0, spi_device=0, nss_pin=NSS_PIN, rst_pin=RST_PIN):
     """Run as receiver"""
     print("\n=== RECEIVER MODE ===")
     print("Listening for messages...")
     print("Press Ctrl+C to stop\n")
     
-    lora = SX1276()
+    lora = SX1276(spi_bus=spi_bus, spi_device=spi_device, nss_pin=nss_pin, rst_pin=rst_pin)
     
     try:
         while True:
@@ -295,13 +357,37 @@ def receiver_mode():
         lora.close()
 
 
-def test_mode():
+def test_mode(spi_bus=0, spi_device=0, nss_pin=NSS_PIN, rst_pin=RST_PIN):
     """Test mode - verify module detection and configuration"""
     print("\n=== TEST MODE ===")
     print("Testing Helium LoRa modem detection and configuration...\n")
     
+    print(f"Configuration:")
+    print(f"  SPI Bus: {spi_bus}")
+    print(f"  SPI Device: {spi_device}")
+    print(f"  NSS/CS Pin: GPIO {nss_pin}")
+    print(f"  RST Pin: GPIO {rst_pin}")
+    print()
+    
+    # First, check if SPI is available
     try:
-        lora = SX1276()
+        import os
+        if not os.path.exists(f'/dev/spidev{spi_bus}.{spi_device}'):
+            print(f"✗ ERROR: SPI device /dev/spidev{spi_bus}.{spi_device} not found!")
+            print("\nEnable SPI:")
+            print("  sudo raspi-config")
+            print("  Interface Options -> SPI -> Enable")
+            print("  sudo reboot")
+            return
+        else:
+            print(f"✓ SPI device /dev/spidev{spi_bus}.{spi_device} found")
+    except Exception as e:
+        print(f"⚠ Could not check SPI device: {e}")
+    
+    print()
+    
+    try:
+        lora = SX1276(spi_bus=spi_bus, spi_device=spi_device, nss_pin=nss_pin, rst_pin=rst_pin, debug=True)
         
         # Read and display key registers
         print("Module Information:")
@@ -391,28 +477,46 @@ def test_mode():
 
 if __name__ == "__main__":
     import sys
+    import argparse
     
-    if len(sys.argv) > 1:
-        mode = sys.argv[1].lower()
+    parser = argparse.ArgumentParser(description='LoRa P2P Test for SX1276 / Helium Modems')
+    parser.add_argument('mode', nargs='?', choices=['tx', 'rx', 'test', 'transmit', 'receive'],
+                       help='Operation mode: tx (transmit), rx (receive), or test')
+    parser.add_argument('--spi-bus', type=int, default=0, help='SPI bus number (default: 0)')
+    parser.add_argument('--spi-device', type=int, default=0, help='SPI device number (default: 0)')
+    parser.add_argument('--nss-pin', type=int, default=NSS_PIN, help=f'NSS/CS GPIO pin (default: {NSS_PIN})')
+    parser.add_argument('--rst-pin', type=int, default=RST_PIN, help=f'RST GPIO pin (default: {RST_PIN})')
+    
+    args = parser.parse_args()
+    
+        if args.mode:
+        mode = args.mode.lower()
         if mode == "tx" or mode == "transmit":
-            transmitter_mode()
+            transmitter_mode(spi_bus=args.spi_bus, spi_device=args.spi_device,
+                           nss_pin=args.nss_pin, rst_pin=args.rst_pin)
         elif mode == "rx" or mode == "receive":
-            receiver_mode()
+            receiver_mode(spi_bus=args.spi_bus, spi_device=args.spi_device,
+                         nss_pin=args.nss_pin, rst_pin=args.rst_pin)
         elif mode == "test":
-            test_mode()
-        else:
-            print("Usage: python3 lora_p2p_test.py [tx|rx|test]")
-            print("  tx    - Transmitter mode (sends messages)")
-            print("  rx    - Receiver mode (listens for messages)")
-            print("  test  - Test mode (verify module detection)")
+            test_mode(spi_bus=args.spi_bus, spi_device=args.spi_device, 
+                     nss_pin=args.nss_pin, rst_pin=args.rst_pin)
     else:
         print("LoRa P2P Test for SX1276 / Helium Modems")
-        print("\nUsage: python3 lora_p2p_test.py [tx|rx|test]")
-        print("\n  tx    - Transmitter mode (sends messages)")
+        print("\nUsage: python3 lora_p2p_test.py [tx|rx|test] [options]")
+        print("\nModes:")
+        print("  tx    - Transmitter mode (sends messages)")
         print("  rx    - Receiver mode (listens for messages)")
         print("  test  - Test mode (verify module detection)")
-        print("\nExample:")
-        print("  Terminal 1: python3 lora_p2p_test.py rx")
-        print("  Terminal 2: python3 lora_p2p_test.py tx")
+        print("\nOptions:")
+        print("  --spi-bus N      SPI bus number (default: 0)")
+        print("  --spi-device N   SPI device number (default: 0)")
+        print("  --nss-pin N      NSS/CS GPIO pin (default: 8)")
+        print("  --rst-pin N      RST GPIO pin (default: 25)")
+        print("\nExamples:")
+        print("  python3 lora_p2p_test.py test")
+        print("  python3 lora_p2p_test.py test --spi-device 1")
+        print("  python3 lora_p2p_test.py test --nss-pin 7")
+        print("  python3 lora_p2p_test.py rx")
+        print("  python3 lora_p2p_test.py tx")
         print("\nFor Helium modems, first run:")
         print("  python3 lora_p2p_test.py test")
