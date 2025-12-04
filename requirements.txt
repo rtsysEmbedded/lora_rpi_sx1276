@@ -1,4 +1,3 @@
 RPi.GPIO>=0.7.1
 spidev>=3.6
-pyLoRa>=0.4.0
 pycryptodome>=3.19.0

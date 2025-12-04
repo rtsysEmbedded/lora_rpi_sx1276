@@ -94,16 +94,31 @@ Or if you copied the files manually, ensure all files are in the same directory.
 
 ### 4. Install Python Dependencies
 
+**Option A: Automatic Installation (Recommended)**
 ```bash
-pip3 install -r requirements.txt
+sudo bash install.sh
 ```
 
-If you get an error about `SX127x` not found, install it manually:
+**Option B: Manual Installation**
+
+See `MANUAL_INSTALL.md` or `INSTALL_INSTRUCTIONS.md` for detailed steps.
+
+Quick version:
 ```bash
+# Install basic packages
 pip3 install RPi.GPIO spidev pycryptodome
+
+# Install pySX127x from GitHub
+cd /tmp
 git clone https://github.com/rpsreal/pySX127x.git
 cd pySX127x
 sudo python3 setup.py install
+cd ~
+```
+
+**Verify Installation:**
+```bash
+python3 check_dependencies.py
 ```
 
 ## ⚙️ Configuration

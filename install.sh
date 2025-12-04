@@ -50,15 +50,24 @@ pip3 install -r requirements.txt
 
 echo ""
 echo "Step 5: Installing pySX127x library..."
-if [ ! -d "/tmp/pySX127x" ]; then
+cd /tmp
+rm -rf /tmp/pySX127x 2>/dev/null
+echo "Cloning pySX127x repository..."
+if git clone https://github.com/rpsreal/pySX127x.git; then
+    cd pySX127x
+    echo "Installing pySX127x..."
+    python3 setup.py install
     cd /tmp
-    git clone https://github.com/rpsreal/pySX127x.git
+    rm -rf /tmp/pySX127x
+    echo "✓ pySX127x installed"
+else
+    echo "⚠ Failed to clone from rpsreal, trying alternative..."
+    git clone https://github.com/mayeranalytics/pySX127x.git
     cd pySX127x
     python3 setup.py install
-    cd -
+    cd /tmp
     rm -rf /tmp/pySX127x
-else
-    echo "pySX127x already downloaded"
+    echo "✓ pySX127x installed from alternative source"
 fi
 
 echo ""
